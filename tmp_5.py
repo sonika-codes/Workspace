@@ -49,3 +49,27 @@ class Predictor:
         # Predict
         preds = self.model.predict(X_scaled)
         return preds.flatten().tolist()
+
+
+gcloud ai models upload \
+  --region=$REGION \
+  --display-name=my-cpr-demo \
+  --artifact-uri=gs://$BUCKET_NAME/artifacts \
+  --container-image-uri=us-docker.pkg.dev/vertex-ai/prediction/tf2-cpu.2-11:latest \
+  --prediction-class=predictor.Predictor \
+  --package-uris=gs://$BUCKET_NAME/code/my_cpr_package.zip
+
+
+# Create endpoint
+gcloud ai endpoints create \
+  --region=$REGION \
+  --display-name=my-cpr-endpoint
+
+# Deploy
+ENDPOINT_ID=$(gcloud ai endpoints list --region=$REGION --format="value(ID)" --filter="displayName=my-cpr-endpoint")
+
+gcloud ai endpoints deploy-model $ENDPOINT_ID \
+  --region=$REGION \
+  --model=MODEL_ID \
+  --display-name=my-cpr-deployment \
+  --machine-type=n1-standard-2
