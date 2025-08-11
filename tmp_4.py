@@ -6,6 +6,10 @@ from sklearn.metrics import silhouette_score
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+
 # ------------ helpers (short versions) ------------
 
 def _proportion_based_clustering(df):
@@ -92,15 +96,51 @@ def _generate_synthetic(
 
 # ------------ one-call comparator ------------
 
+
+
+def _plot_role_proportion_scatter(props_real, props_syn):
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5), sharex=True, sharey=True)
+    for ax, props, title in zip(
+        axes,
+        [props_real, props_syn],
+        ["Real Data - Role Proportions", "Synthetic Data - Role Proportions"]
+    ):
+        sns.scatterplot(
+            x="human_prop", y="functional_prop",
+            hue="cluster", palette="Set1", data=props, ax=ax
+        )
+        ax.set_title(title)
+        ax.set_xlabel("Human Proportion")
+        ax.set_ylabel("Functional Proportion")
+        ax.legend(title="Cluster", loc="best")
+    plt.suptitle("Role Proportion Clustering")
+    plt.show()
+
+def _plot_hour_of_week_heatmaps(hour_mat_real, hour_mat_syn, n_clusters):
+    fig, axes = plt.subplots(n_clusters, 2, figsize=(12, n_clusters*2))
+    if n_clusters == 1:
+        axes = np.array([[axes[0], axes[1]]])
+    for c in range(n_clusters):
+        for col, (hour_mat, title) in enumerate(
+            [(hour_mat_real, "Real Data"), (hour_mat_syn, "Synthetic Data")]
+        ):
+            subset = hour_mat[hour_mat.cluster == c].drop(columns="cluster")
+            avg_pattern = subset.mean(axis=0).values.reshape(7, 24)
+            ax = axes[c, col]
+            sns.heatmap(
+                avg_pattern, cmap="viridis", cbar=False, ax=ax
+            )
+            ax.set_title(f"{title} - Cluster {c}")
+            ax.set_xlabel("Hour of Day")
+            ax.set_ylabel("Day of Week (0=Mon)")
+    plt.suptitle("Hour-of-Week Usage Patterns")
+    plt.tight_layout()
+    plt.show()
+
 def compare_real_vs_synthetic(real_df: pd.DataFrame,
                               synthetic_df: pd.DataFrame | None = None,
                               n_hour_clusters: int = 3,
                               top_n: int = 8) -> dict:
-    """
-    Runs role-proportion and hour-of-week clustering on real data and a synthetic baseline.
-    Prints side-by-side metrics; returns all artifacts.
-    real_df must have columns: timestamp, user, command, account_type
-    """
     syn = synthetic_df if synthetic_df is not None else _generate_synthetic()
 
     # Role proportions
@@ -111,7 +151,7 @@ def compare_real_vs_synthetic(real_df: pd.DataFrame,
     hour_real, stats_hour_real = _hour_of_week_clustering(real_df, n_clusters=n_hour_clusters)
     hour_syn,  stats_hour_syn  = _hour_of_week_clustering(syn,     n_clusters=n_hour_clusters)
 
-    # Pretty print summary
+    # Summary table
     summary = pd.DataFrame({
         "metric": [
             "role_silhouette", "role_centroid_distance",
@@ -136,16 +176,20 @@ def compare_real_vs_synthetic(real_df: pd.DataFrame,
     print("\n=== Side-by-side metrics (Real vs Synthetic) ===")
     print(summary.to_string(index=False))
 
-    # Top purity tables (role-proportion)
-    print("\n--- Real: top role‑pure commands per cluster ---")
+    # Purity tables
+    print("\n--- Real: top role-pure commands per cluster ---")
     for c in sorted(props_real["cluster"].unique()):
         print(f"\nCluster {c}")
-        print(_purity_table(props_real, c, top_n=top_n).head(top_n).to_string())
+        print(_purity_table(props_real, c, top_n=top_n).to_string())
 
-    print("\n--- Synthetic: top role‑pure commands per cluster ---")
+    print("\n--- Synthetic: top role-pure commands per cluster ---")
     for c in sorted(props_syn["cluster"].unique()):
         print(f"\nCluster {c}")
-        print(_purity_table(props_syn, c, top_n=top_n).head(top_n).to_string())
+        print(_purity_table(props_syn, c, top_n=top_n).to_string())
+
+    # Plots
+    _plot_role_proportion_scatter(props_real, props_syn)
+    _plot_hour_of_week_heatmaps(hour_real, hour_syn, n_hour_clusters)
 
     return {
         "summary_table": summary,
