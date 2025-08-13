@@ -53,3 +53,36 @@ with SSHTunnelForwarder(
     conn.close()
 
 print("Data inserted successfully!")
+
+from sshtunnel import SSHTunnelForwarder  # Run pip install sshtunnel
+from sqlalchemy.orm import sessionmaker  # Run pip install sqlalchemy
+from sqlalchemy import create_engine
+
+with SSHTunnelForwarder(
+        ('<remote server ip>', 22),  # Remote server IP and SSH port
+        ssh_username="<username>",
+        ssh_password="<password>",
+        remote_bind_address=(
+        '<local server ip>', 5432)) as server:  # PostgreSQL server IP and sever port on remote machine
+
+    server.start()  # start ssh sever
+    print
+    'Server connected via SSH'
+
+    # connect to PostgreSQL
+    local_port = str(server.local_bind_port)
+    engine = create_engine('postgresql://<username>:<password>@127.0.0.1:' + local_port + '/database_name')
+
+    Session = sessionmaker(bind=engine)
+    session = Session()
+
+    print
+    'Database session created'
+
+    # test data retrieval
+    test = session.execute("SELECT * FROM database_table")
+    for row in test:
+        print
+        row['id']
+
+    session.close()
